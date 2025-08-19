@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // HTTP istekleri için
 import 'dart:convert';                   // JSON decode için
+import 'dam_detail_page.dart';           // YENİ DETAY SAYFAMIZI IMPORT EDİYORUZ
 
 void main() {
   runApp(const IskiRadarApp());
@@ -52,8 +53,9 @@ class _DamListPageState extends State<DamListPage> {
       });
     }
 
-    const String apiUrl = 'http://iski-radar-app-env.eba-xnybzvqi.eu-north-1.elasticbeanstalk.com/api/dams';
-    //const String apiUrl = 'http://10.0.2.2:8090/api/dams';
+    // Geliştirme için lokal adresi kullanıyoruz
+    const String apiUrl = 'http://10.0.2.2:8090/api/dams';
+
     try {
       final response = await http.get(Uri.parse(apiUrl)).timeout(const Duration(seconds: 10));
 
@@ -121,11 +123,8 @@ class _DamListPageState extends State<DamListPage> {
         itemCount: _dams.length,
         itemBuilder: (context, index) {
           final dam = _dams[index];
-
-          // Doluluk oranını metinden sayıya çeviriyoruz. Hata olursa varsayılan 0.0 olsun.
           final double occupancyRate = double.tryParse(dam['dolulukOrani'] ?? '0.0') ?? 0.0;
 
-          // Doluluk oranına göre renk belirliyoruz.
           Color progressColor;
           if (occupancyRate > 70) {
             progressColor = Colors.green;
@@ -135,42 +134,54 @@ class _DamListPageState extends State<DamListPage> {
             progressColor = Colors.red;
           }
 
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Column( // ListTile ve ProgressIndicator'ı alt alta koymak için Column kullanıyoruz.
-                children: [
-                  ListTile(
-                    title: Text(dam['baslikAdi'] ?? 'İsim Yok', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    trailing: Text(
-                      '%${occupancyRate.toStringAsFixed(2)}', // Virgülden sonra 2 basamak göster.
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: progressColor, // Rengi burada da kullanalım.
+          // --- DEĞİŞİKLİK BURADA BAŞLIYOR ---
+          return InkWell(
+            onTap: () {
+              // Tıklandığında yeni sayfayı aç ve 'dam' verisini gönder.
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DamDetailPage(dam: dam),
+                ),
+              );
+            },
+            child: Card(
+              margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: Text(dam['baslikAdi'] ?? 'İsim Yok', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      trailing: Text(
+                        '%${occupancyRate.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: progressColor,
+                        ),
+                      ),
+                      leading: CircleAvatar(
+                        backgroundColor: progressColor.withOpacity(0.2),
+                        child: Text('${index + 1}', style: TextStyle(color: progressColor, fontWeight: FontWeight.bold)),
                       ),
                     ),
-                    leading: CircleAvatar(
-                      backgroundColor: progressColor.withOpacity(0.2), // Rengin daha açığını kullanalım.
-                      child: Text('${index + 1}', style: TextStyle(color: progressColor, fontWeight: FontWeight.bold)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                      child: LinearProgressIndicator(
+                        value: occupancyRate / 100.0,
+                        backgroundColor: Colors.grey[300],
+                        color: progressColor,
+                        minHeight: 6,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
                     ),
-                  ),
-                  // İlerleme çubuğunu ekliyoruz.
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                    child: LinearProgressIndicator(
-                      value: occupancyRate / 100.0, // Değer 0.0 ile 1.0 arasında olmalı.
-                      backgroundColor: Colors.grey[300],
-                      color: progressColor,
-                      minHeight: 6, // Çubuğun kalınlığı
-                      borderRadius: BorderRadius.circular(5), // Kenarları yuvarlatır.
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
+          // --- DEĞİŞİKLİK BURADA BİTİYOR ---
         },
       ),
     );
