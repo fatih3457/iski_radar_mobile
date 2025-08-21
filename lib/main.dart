@@ -3,6 +3,14 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dam_detail_page.dart';
 
+// --- API URL YAPILANDIRMASI ---
+const String localApiUrl = 'http://10.0.2.2:8090';
+const String liveApiUrl = 'http://iski-radar-app-env.eba-mgdiqfpx.eu-north-1.elasticbeanstalk.com';
+
+// Geliştirme ve canlı ortam arasında geçiş yapmak için bu satırı değiştir.
+const String currentApiUrl = liveApiUrl; // Canlı test için 'liveApiUrl'
+// const String currentApiUrl = localApiUrl; // Lokal test için 'localApiUrl'
+
 void main() {
   runApp(const IskiRadarApp());
 }
@@ -32,22 +40,18 @@ class DamListPage extends StatefulWidget {
 }
 
 class _DamListPageState extends State<DamListPage> {
-  // --- STATE DEĞİŞKENLERİ ---
   List<dynamic> _dams = [];
-  Map<String, dynamic>? _overviewData; // <-- YENİ: Özet verisini tutmak için Map
+  Map<String, dynamic>? _overviewData;
   bool _isLoading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    // Artık iki API'yi de çağıracağız
     _fetchAllData();
   }
 
-  // --- YENİ METOT: Hem listeyi hem de özeti çeker ---
   Future<void> _fetchAllData() async {
-    // Yenileme işlemi için state'i sıfırlıyoruz.
     if (!_isLoading) {
       setState(() {
         _isLoading = true;
@@ -55,18 +59,15 @@ class _DamListPageState extends State<DamListPage> {
       });
     }
 
-    // İki API isteğini aynı anda yapalım
     try {
-      final damsFuture = http.get(Uri.parse('http://10.0.2.2:8090/api/dams'));
-      final overviewFuture = http.get(Uri.parse('http://10.0.2.2:8090/api/dams/overview'));
+      final damsFuture = http.get(Uri.parse('$currentApiUrl/api/dams'));
+      final overviewFuture = http.get(Uri.parse('$currentApiUrl/api/dams/overview'));
 
-      // İki isteğin de bitmesini bekle
       final responses = await Future.wait([damsFuture, overviewFuture]);
 
       final damsResponse = responses[0];
       final overviewResponse = responses[1];
 
-      // İki yanıtın da başarılı olup olmadığını kontrol et
       if (damsResponse.statusCode == 200 && overviewResponse.statusCode == 200) {
         final decodedDams = utf8.decode(damsResponse.bodyBytes);
         final decodedOverview = utf8.decode(overviewResponse.bodyBytes);
@@ -77,7 +78,6 @@ class _DamListPageState extends State<DamListPage> {
           _isLoading = false;
         });
       } else {
-        // Hata durumunu daha net belirtelim
         setState(() {
           _error = 'Veriler yüklenemedi. Baraj Listesi: ${damsResponse.statusCode}, Özet: ${overviewResponse.statusCode}';
           _isLoading = false;
@@ -85,13 +85,11 @@ class _DamListPageState extends State<DamListPage> {
       }
     } catch (e) {
       setState(() {
-        _error = 'Bir hata oluştu: $e. Backend API\'sinin çalıştığından emin olun.';
+        _error = 'Bir hata oluştu: $e. Sunucunun çalıştığından emin olun.';
         _isLoading = false;
       });
     }
   }
-
-  // Eski _fetchDams metodunu silebilir veya yorum satırı yapabiliriz.
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +98,6 @@ class _DamListPageState extends State<DamListPage> {
         title: const Text('İSKİ Baraj Doluluk Oranları'),
         backgroundColor: Colors.blue[800],
       ),
-      // RefreshIndicator artık yeni _fetchAllData metodunu çağıracak
       body: RefreshIndicator(
         onRefresh: _fetchAllData,
         child: _buildBody(),
@@ -113,35 +110,43 @@ class _DamListPageState extends State<DamListPage> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      // ... Hata gösterme kısmı aynı ...
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('Hata: $_error', textAlign: TextAlign.center),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _fetchAllData,
+              child: const Text('Tekrar Dene'),
+            )
+          ],
+        ),
+      );
     }
 
-    // --- YENİ ARAYÜZ YAPISI ---
-    return Column( // Ana listeyi ve özet kartını alt alta koymak için Column
+    return Column(
       children: [
-        // ÖZET KARTI
         _buildOverviewCard(),
-
-        // LİSTENİN BAŞLIĞI
         const Padding(
-          padding: EdgeInsets.all(16.0),
+          padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text("Barajlar", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
         ),
-
-        // LİSTENİN KENDİSİ
-        Expanded( // Column içinde ListView kullanırken Expanded şarttır.
+        Expanded(
           child: _buildDamList(),
         ),
       ],
     );
   }
 
-  // --- YENİ WIDGET: Özet Kartı ---
   Widget _buildOverviewCard() {
-    if (_overviewData == null) return const SizedBox.shrink(); // Veri yoksa hiçbir şey gösterme
+    if (_overviewData == null) return const SizedBox.shrink();
 
     final average = _overviewData!['genelDolulukOraniOrtalamasi'] as double;
     final count = _overviewData!['barajSayisi'] as int;
@@ -150,6 +155,7 @@ class _DamListPageState extends State<DamListPage> {
     return Card(
       margin: const EdgeInsets.all(12.0),
       elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -179,17 +185,17 @@ class _DamListPageState extends State<DamListPage> {
     );
   }
 
-  // --- LİSTEYİ OLUŞTURAN ESKİ KISIM ARTIK KENDİ METODUNDA ---
   Widget _buildDamList() {
     if (_dams.isEmpty) {
       return const Center(child: Text('Gösterilecek baraj verisi bulunamadı.'));
     }
     return ListView.builder(
+      padding: const EdgeInsets.only(top: 8.0),
       physics: const AlwaysScrollableScrollPhysics(),
-      // itemCount'u listenin sonuna taşıdım, daha standart bir kullanım.
+      itemCount: _dams.length,
       itemBuilder: (context, index) {
         final dam = _dams[index];
-        final double occupancyRate = double.tryParse(dam['dolulukOrani'] ?? '0.0') ?? 0.0;
+        final double occupancyRate = double.tryParse(dam['dolulukOrani']?.toString().replaceAll(',', '.') ?? '0.0') ?? 0.0;
 
         Color progressColor;
         if (occupancyRate > 70) {
@@ -202,7 +208,6 @@ class _DamListPageState extends State<DamListPage> {
 
         return InkWell(
           onTap: () {
-            // Navigator.push artık burada olduğu için import aktifleşecek.
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -247,7 +252,6 @@ class _DamListPageState extends State<DamListPage> {
           ),
         );
       },
-      itemCount: _dams.length,
     );
   }
 }
